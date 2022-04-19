@@ -22,6 +22,7 @@ library(corrplot)
 library(ggthemes)
 library(cli)
 library(recipes)
+library(pROC)
 library(yardstick)
 library(MASS)
 library(poissonreg)
@@ -29,7 +30,7 @@ library(naivebayes)
 tidymodels_prefer()
 ```
 
-```{r}
+```{r message=FALSE, include=FALSE}
 titanic <- read_csv('C:\\Program Files\\Git\\tmp\\131-hw3\\titanic.csv')
 names <- c('pclass', 'survived')
 titanic[,names] <- lapply(titanic[,names] , factor)
@@ -163,3 +164,21 @@ results <- tibble(accuracies = accuracies, models = models)
 results %>% 
   arrange(-accuracies)
 ```
+
+The logistic model received the highest score of accuracy (0.810) compared to the rest of the models.                                                                                       
+10.
+```{r}
+pred <- predict(log_fit, new_data = titanic_test, type = "prob")
+pred
+multi_metric <- metric_set(accuracy, yardstick::sensitivity, yardstick::specificity)
+augment(log_fit, new_data = titanic_test) %>%
+  multi_metric(truth = survived, estimate = .pred_class)
+augment(log_fit, new_data = titanic_test) %>%
+  conf_mat(truth = survived, estimate = .pred_class) 
+augment(log_fit, new_data = titanic_test) %>%
+  roc_curve(survived, .pred_No) %>%
+  autoplot()
+auc(titanic_test$survived, pred$.pred_No)
+```
+
+The AUC of the ROC is 0.8663. The accuracy of our logistic model on the testing data ended up being roughly 0.838, which tells us our model fits the data decently well. It is also a higher accuracy estimate than the training data (0.810), but not by much. A likely explanation for this is that there are fewer observations in our testing data, so it is likely our data set does not include as many outliers, which may influence the accuracy. 
