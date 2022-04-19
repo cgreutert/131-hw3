@@ -1,0 +1,106 @@
+---
+title: "PSTAT 131 Homework Three: Classification"
+author: "Carly Greutert"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidymodels)
+library(ISLR) # For the Smarket data set
+library(ggplot2)
+library(discrim)
+library(corrr)
+library(klaR) # for naive bayes
+library(caret)
+library(dplyr)
+library(ggplot2)
+library(tidyverse)
+library(corrplot)
+library(ggthemes)
+library(cli)
+library(recipes)
+library(yardstick)
+library(MASS)
+tidymodels_prefer()
+```
+
+```{r}
+titanic <- read_csv('C:\\Program Files\\Git\\tmp\\131-hw3\\titanic.csv')
+names <- c('pclass', 'survived')
+titanic[,names] <- lapply(titanic[,names] , factor)
+```
+
+Note I used https://www.listendata.com/2015/05/converting-multiple-numeric-variables.html#:~:text=In%20R%2C%20you%20can%20convert%20multiple%20numeric%20variables,functions.%20They%20perform%20multiple%20iterations%20%28loops%29%20in%20R to learn about using the lapply function.
+
+1.
+```{r}
+set.seed(777)
+titanic_split <- initial_split(titanic, prop = 0.80, strata = 'survived')
+titanic_train <- training(titanic_split)
+titanic_test <- testing(titanic_split)
+```
+Note that since the training data is 80% of the data set observations and titanic_train has 891\*0.8~712 observations and titanic_test is 891\*0.2~179 observations. 
+```{r}
+sum(is.na(titanic_train$passenger_id))
+sum(is.na(titanic_train$survived))
+sum(is.na(titanic_train$pclass))
+sum(is.na(titanic_train$name))
+sum(is.na(titanic_train$sex))
+sum(is.na(titanic_train$age))
+sum(is.na(titanic_train$sib_sp))
+sum(is.na(titanic_train$parch))
+sum(is.na(titanic_train$ticket))
+sum(is.na(titanic_train$fare))
+sum(is.na(titanic_train$cabin))
+sum(is.na(titanic_train$embarked))
+```
+Note that there are a significant number of observations missing for age, but a significant amount more for cabin. All other column observations either have 0 or 1 missing observations. Also, it is clear that we should use stratified sampling for this data set because of the diverse set of influences on whether or not a passenger survived based on different variables (i.e. sex, age, pclass, etc). Thus, our sample should include a diverse mix of these possible influences.                                                                                     
+2. 
+```{r}
+titanic_train %>% ggplot(aes(x = factor(survived)))+ stat_count(geom = "bar")
+```
+
+From the distribution of our outcome variable, survived, there were significantly more passengers who did not survive, as opposed to those who did.                                   
+3.
+```{r}
+titanic_cor <- titanic_train %>%
+  select(-survived) %>%
+  select(-pclass)%>%
+  select(-sex) %>%
+  select(-embarked) %>%
+  select(-cabin) %>%
+  select(-ticket) %>%
+  select(-name) %>%
+  correlate(use = "pairwise.complete.obs",
+  method = "pearson")
+rplot(titanic_cor)
+```
+
+I notice that the variables parch and sib_sp are positively correlated and parch and age, as well as age and sib_sp are negatively correlated (i.e in the increasing and decreasing direction, respectively).                                                                       
+4.
+```{r}
+titanic_recipe <- recipe(survived ~ pclass + sex + age + sib_sp + parch + fare, data = titanic_train)
+titanic_recipe <- titanic_recipe %>%
+  step_impute_linear(age) %>%
+  step_dummy(all_nominal_predictors())%>%
+  step_interact(~sex:fare) %>%
+  step_interact(~age:fare)
+titanic_recipe
+```
+
+5.
+```{r}
+log_reg <- logistic_reg() %>% 
+  set_engine("glm") %>% 
+  set_mode("classification")
+log_wkflow <- workflow() %>% 
+  add_model(log_reg) %>% 
+  add_recipe(titanic_recipe)
+log_fit <- fit(log_wkflow, titanic_train)
+```
+
+6.
